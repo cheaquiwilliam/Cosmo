@@ -10,7 +10,8 @@ load_dotenv()
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 # Adjust these as needed
-MAX_TOKENS = 30000  # Max tokens for messages history (leave room for response)
+MAX_COMPLETION_TOKENS = 3000
+MAX_CONTEXT_TOKENS = 120000  # adjust for your model  # Max tokens for messages history (leave room for response)
 MODEL_NAME = "gpt-4"  # or "gpt-4-turbo"
 
 
@@ -18,8 +19,8 @@ MODEL_NAME = "gpt-4"  # or "gpt-4-turbo"
 tokenizer = tiktoken.encoding_for_model(MODEL_NAME)
 
 
-def read_persona(persona_name: str, personas_dir="personas") -> str:
-    filepath = os.path.join(personas_dir, f"{persona_name}.txt")
+def read_persona(persona_name: str, personas_dir="Assets") -> str:
+    filepath = os.path.join(personas_dir, f"{persona_name}")
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"Persona file not found: {filepath}")
     with open(filepath, "r", encoding="utf-8") as f:
@@ -47,14 +48,14 @@ def trim_history(messages):
     """
     system_and_persona = messages[:2]
     rest = messages[2:]
-
-    while rest and count_message_tokens(system_and_persona + rest) > MAX_TOKENS:
-        rest.pop(0)  # Remove oldest message
-
+    
+    while rest and (count_message_tokens(system_and_persona + rest) + MAX_COMPLETION_TOKENS > MAX_CONTEXT_TOKENS):
+        rest.pop(0)
+    
     return system_and_persona + rest
 
 
-def query_openai(messages, model=MODEL_NAME, temperature=0.7, max_tokens=MAX_TOKENS):
+def query_openai(messages, model=MODEL_NAME, temperature=0.7, max_tokens=MAX_COMPLETION_TOKENS):
     response = client.chat.completions.create(
         model=model,
         messages=messages,
@@ -67,11 +68,11 @@ def query_openai(messages, model=MODEL_NAME, temperature=0.7, max_tokens=MAX_TOK
 class ChatApp:
     def __init__(self, root, persona_text, system_prompt):
         self.root = root
-        self.root.title("Job Assistant Chat")
+        self.root.title(f"{persona_text} Chat")
 
         self.messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": persona_text},
+            {"role": "system", "content": system_prompt}
+            # {"role": "user", "content": persona_text},
         ]
 
         # Chat display
@@ -87,8 +88,8 @@ class ChatApp:
         self.send_button = tk.Button(root, text="Send", command=self.send_message)
         self.send_button.pack(padx=10, pady=(0,10))
 
-        self.display_message("System", system_prompt)
-        self.display_message("Persona", persona_text)
+        # self.display_message("System", system_prompt)
+        self.display_message(f"Hi this is {persona_text.title()}", " How can I assist you today?")
 
     def display_message(self, sender, message):
         self.chat_area.config(state='normal')
@@ -129,17 +130,17 @@ class ChatApp:
 
 
 def main():
-    persona_name = input("Enter persona name (e.g., cosmo, jared): ").strip().lower()
+    persona_name = input("Enter gpt name (e.g., cue or jared): ").strip().lower()
     try:
-        persona_text = read_persona(persona_name)
+        gpt = read_persona(persona_name)
     except FileNotFoundError as e:
         print(e)
         return
 
-    system_prompt = "You are a helpful job search assistant."
+    system_prompt = gpt
 
     root = tk.Tk()
-    app = ChatApp(root, persona_text, system_prompt)
+    app = ChatApp(root, persona_name, system_prompt)
     root.mainloop()
 
 
